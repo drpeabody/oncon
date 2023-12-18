@@ -1,0 +1,19 @@
+{
+  "name": "oncon",
+  "version": "1.0.0",
+  "description": "Online Audio Concerts",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drpeabody/oncon.git"
+  },
+  "author": "drpeabody.github.io",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/drpeabody/oncon/issues"
+  },
+  "homepage": "https://github.com/drpeabody/oncon#readme"
+}
