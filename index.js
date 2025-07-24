@@ -1,48 +1,58 @@
-
-console.log("Starting Server...");
-
 const http = require('http');
-const fs = require('fs');
+const AudioContext = window.AudioContext || window.webkitAudioContext;
 
-const PORT = 8000;
-const AUDIO_FILE = './01 Paper Cut.mp3'; // Replace with your audio file path
+const audioContext = new AudioContext();
+let globalAudioBufferSourceNode;
 
-let streamStartMillisecond = -1;
+server.listen(3000, () => {
+  createGlobalStream('01 Paper Cut.mp3')
+    .then(node => {
+      globalAudioBufferSourceNode = node;
+      console.log('Global audio stream created successfully');
+    })
+    .catch(error => {
+      console.error('Error creating global stream:', error);
+      // Implement error handling, e.g., graceful server shutdown
+    });
 
-const server = http.createServer((req, res) => {
-  if (req.url !== '/stream') {
-    res.statusCode = 404;
-    res.end('Not Found');
-    return;
-  }
-
-  res.writeHead(200, {
-    'Content-Type': 'audio/mpeg',
-    'Transfer-Encoding': 'chunked',
-    'Connection': 'keep-alive'
-  });
-
-  const requestTime = Date.now();
-  const bytesToBeSkipped = (320 / 8) * Math.abs(streamStartMillisecond - requestTime) / 1000;
-
-  const audioStream = fs.createReadStream(AUDIO_FILE); // Create a pass-through stream
-
-  audioStream.on('data', (chunk) => {
-    res.write(chunk);
-  });
-
-  audioStream.on('end', () => {
-    res.end();
-  });
-
-  audioStream.on('error', (err) => {
-    console.error(err);
-    res.statusCode = 500;
-    res.end('Internal Server Error');
-  });
+  console.log('Server listening on port 3000');
 });
 
-server.listen(PORT, () => {
-  streamStartMillisecond = Date.now();
-  console.log(`Server listening on port ${PORT}`);
+async function createGlobalStream(audioFile) {
+  try {
+    const response = await fetch(audioFile);
+    const audioBuffer = await response.arrayBuffer();
+    const audioBufferSourceNode = audioContext.createBufferSource();
+    audioBufferSourceNode.buffer = await audioContext.decodeAudioData(audioBuffer);
+    audioBufferSourceNode.loop = true;
+    audioBufferSourceNode.connect(audioContext.destination);
+    audioBufferSourceNode.start();
+
+    return audioBufferSourceNode;
+  } catch (error) {
+    throw error; // Re-throw for handling in server.listen()
+  }
+}
+
+const server = http.createServer((req, res) => {
+  if (req.url === '/stream') {
+    if (!globalAudioBufferSourceNode) {
+      res.writeHead(503); // Service Unavailable
+      res.end('Global audio stream not yet ready');
+      return;
+    }
+
+    const offsetTime = audioContext.currentTime;
+    const stream = audioContext.createMediaStreamDestination();
+    globalAudioBufferSourceNode.start(offsetTime);
+    globalAudioBufferSourceNode.connect(stream);
+
+    const mediaStream = stream.stream;
+    res.writeHead(200, { 'Content-Type': 'audio/mpeg' });
+    mediaStream.pipeTo(res);
+  } else {
+    // Handle other requests
+    res.writeHead(404);
+    res.end('Not found');
+  }
 });
